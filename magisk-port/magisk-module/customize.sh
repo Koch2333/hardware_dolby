@@ -118,18 +118,31 @@ if [ "$MODE" = "direct" ]; then
   ui_print "- Merging media_codecs include ..."
   merge_media_codecs "$PRIMARY_REL" "$PRIMARY_REL"
 
-  ui_print "- Installing vendor_hwservice_contexts entry ..."
+  ui_print "- Installing SELinux labels into /vendor ..."
+  # (a) hwservice label for IDms — read by hwservicemanager early next boot.
   HWC=/vendor/etc/selinux/vendor_hwservice_contexts
   if [ -f "$HWC" ] && ! grep -q 'vendor.dolby.hardware.dms::IDms' "$HWC"; then
     printf 'vendor.dolby.hardware.dms::IDms u:object_r:hal_dms_hwservice:s0\n' >> "$HWC"
+    ui_print "  + IDms hwservice label"
   fi
-
-  ui_print "- Restoring SELinux contexts ..."
-  chcon u:object_r:mediacodec_exec:s0        /vendor/bin/hw/vendor.dolby.media.c2@1.0-service 2>/dev/null
-  chcon u:object_r:hal_dms_default_exec:s0    /vendor/bin/hw/vendor.dolby.hardware.dms@2.0-service 2>/dev/null
-  find /vendor/lib64 -name 'lib*dolby*.so' -o -name 'libdeccfg.so' -o -name 'libdapparamstorage.so' -o -name 'libdlbdsservice.so' -o -name 'libcodec2_soft_ac4dec.so' -o -name 'libcodec2_soft_ddpdec.so' 2>/dev/null | while read f; do
-    chcon u:object_r:vendor_file:s0 "$f" 2>/dev/null
-  done
+  # (b) exec labels in file_contexts so init's domain transition survives the
+  #     restorecon that runs on every boot. Without this the daemon binary would
+  #     revert to vendor_file and — with the strict (non-permissive) policy — the
+  #     DMS service would fail to start.
+  VFC=/vendor/etc/selinux/vendor_file_contexts
+  if [ -f "$VFC" ]; then
+    grep -q 'vendor\.dolby\.hardware\.dms@2\.0-service' "$VFC" || \
+      printf '/vendor/bin/hw/vendor\\.dolby\\.hardware\\.dms@2\\.0-service u:object_r:hal_dms_default_exec:s0\n' >> "$VFC"
+    grep -q 'vendor\.dolby\.media\.c2@1\.0-service' "$VFC" || \
+      printf '/vendor/bin/hw/vendor\\.dolby\\.media\\.c2@1\\.0-service u:object_r:mediacodec_exec:s0\n' >> "$VFC"
+    ui_print "  + exec file_contexts entries"
+  else
+    ui_print "! /vendor/etc/selinux/vendor_file_contexts not found — exec labels"
+    ui_print "! rely on chcon xattr only (may not survive a /vendor restorecon)."
+  fi
+  # (c) apply the exec labels now too; the xattr persists across reboot.
+  chcon u:object_r:hal_dms_default_exec:s0 /vendor/bin/hw/vendor.dolby.hardware.dms@2.0-service 2>/dev/null
+  chcon u:object_r:mediacodec_exec:s0      /vendor/bin/hw/vendor.dolby.media.c2@1.0-service 2>/dev/null
 
   mount -o ro,remount /vendor 2>/dev/null
 

@@ -67,5 +67,6 @@ cp -a "$REPO/proprietary/vendor/etc/init/vendor.dolby.hardware.dms@2.0-service.r
 echo ">> zipping -> $OUT"
 ( cd "$STAGE" && zip -r9 "$OUT" . -x '.*' >/dev/null )
 echo ">> done: $OUT"
-echo ">> AC4 note: media_codecs_dolby_audio.xml declares only AC3/E-AC3/E-AC3-JOC."
-echo ">> To also expose c2.dolby.ac4.decoder you must add an AC4 <MediaCodec> block (see README)."
+echo ">> Codecs declared: AC3 / E-AC3 / E-AC3-JOC (c2.dolby.eac3.decoder) and"
+echo ">>                   AC4 (c2.dolby.ac4.decoder, audio/ac4)."
+echo ">> To disable AC4, remove the DOLBY_AC4 block from configs/media/media_codecs_dolby_audio.xml."

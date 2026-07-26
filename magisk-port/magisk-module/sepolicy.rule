@@ -1,47 +1,101 @@
 # SELinux rules for the Dolby codec path, injected by magiskpolicy at boot.
 #
-# What magiskpolicy CAN do here: create new types and add allow rules into the
-# live policy. What it CANNOT do: edit hwservice_contexts (that is a plain file
-# read by hwservicemanager very early in boot). So the DMS IDms interface label
-# still has to come from a hwservice_contexts entry that is in place before
-# hwservicemanager starts — see README (direct install mode writes it into
-# /vendor/etc/selinux/vendor_hwservice_contexts).
+# This is the STRICT version: no `permissive` fallback. Every rule below is a
+# hand-expansion of the AOSP m4 macros from the original policy
+# (sepolicy/vendor/*.te), because magiskpolicy consumes plain
+# `allow`/`type`/`type_transition` statements, not macros. If the DMS daemon
+# hits a denial on some ROM, DO NOT re-enable global permissive — read the exact
+# denial (`dmesg | grep 'avc: denied'` or `logcat -b all | grep avc`) and add the
+# one missing allow. A temporary, scoped debug switch is documented at the bottom.
 #
 # The Dolby c2 service runs in the existing `mediacodec` domain (its exec file is
-# labelled mediacodec_exec in file_contexts), so it needs no new domain — only
-# permission to reach the DMS HAL.
+# labelled mediacodec_exec via file_contexts), so it needs no new domain — only
+# the mediacodec->DMS access rules below.
+#
+# IMPORTANT: magiskpolicy can inject these rules, but it CANNOT label files. The
+# exec label (hal_dms_default_exec) and the hwservice label must come from
+# file_contexts / hwservice_contexts entries that customize.sh writes into
+# /vendor in direct mode — see README.
 
-# --- DMS HAL types ---
+# ============================================================================
+# Types  (from attributes, hwservice.te, hal_dms_default.te)
+# ============================================================================
 type hal_dms_default domain
 type hal_dms_default_exec exec_type vendor_file_type file_type
 type hal_dms_hwservice hwservice_manager_type
 
-# Pragmatic: run the DMS daemon permissive so a missing niche allow does not
-# silently break decoder config. Tighten once you have a clean audit log.
-permissive hal_dms_default
+# ============================================================================
+# init launches the DMS daemon and transitions it into its own domain
+# (expands: init_daemon_domain(hal_dms_default))
+# ============================================================================
+type_transition init hal_dms_default_exec process hal_dms_default
+allow init hal_dms_default_exec file { getattr open read execute map }
+allow init hal_dms_default process transition
+allow hal_dms_default hal_dms_default_exec file { entrypoint getattr open read execute map }
+allow hal_dms_default init fd use
+allow hal_dms_default init process sigchld
 
-# Let init launch the DMS daemon and transition it into its domain.
-allow init hal_dms_default_exec file { read open getattr execute map }
-allow init hal_dms_default process { transition }
-allow hal_dms_default hal_dms_default_exec file { entrypoint read open getattr execute map }
+# ============================================================================
+# hwbinder + hwservicemanager plumbing
+# (expands: hwbinder_use(hal_dms_default) — normally inherited from
+#  halserverdomain, expanded explicitly so it does not depend on the base ROM
+#  wiring the attribute the way we expect)
+# ============================================================================
+allow hal_dms_default hwbinder_device chr_file { read write open ioctl map getattr }
+allow hal_dms_default hwservicemanager binder { call transfer }
+allow hwservicemanager hal_dms_default binder { call transfer }
+allow hwservicemanager hal_dms_default fd use
+allow hal_dms_default hwservicemanager_prop file { getattr open read map }
 
-# DMS registers and finds its own hwservice.
-allow hal_dms_default hwservice_manager_type hwservice_manager { add find }
-allow hal_dms_default hwservice_manager service_manager { add find }
+# ============================================================================
+# DMS registers + serves its hwservice
+# (expands: add_hwservice(hal_dms_server, hal_dms_hwservice))
+# ============================================================================
+allow hal_dms_default hal_dms_hwservice hwservice_manager { add find }
+allow hal_dms_default hidl_base_hwservice hwservice_manager add
 
-# The decoders live in the mediacodec domain and must reach DMS.
+# ============================================================================
+# Clients (mediacodec, which hosts the decoders that link the DMS client lib)
+# find + call the HAL
+# (expands: allow mediacodec hal_dms_hwservice:hwservice_manager find;
+#           binder_call(mediacodec, hal_dms_default))
+# ============================================================================
 allow mediacodec hal_dms_hwservice hwservice_manager find
 allow mediacodec hal_dms_default binder call
-allow hal_dms_default mediacodec binder call
+allow hal_dms_default mediacodec binder { call transfer }
+allow mediacodec hal_dms_default fd use
 
-# DMS parameter storage under /data/vendor/dolby.
-allow hal_dms_default vendor_data_file dir { search open read write add_name remove_name rw_dir_perms }
-allow hal_dms_default vendor_data_file file { create open read write unlink getattr setattr map }
+# ============================================================================
+# DMS parameter storage under /data/vendor/dolby  (vendor_data_file)
+# (expands the rw_file_perms/create/unlink rules from hal_dms_default.te)
+# ============================================================================
+allow hal_dms_default vendor_data_file dir { search open read write getattr setattr add_name remove_name }
+allow hal_dms_default vendor_data_file file { create open read write append unlink getattr setattr map lock }
 
-# DMS reads vendor audio props.
-allow hal_dms_default vendor_default_prop file { read open getattr map }
+# ============================================================================
+# Property access
+# (expands: get_prop(hal_dms_default, vendor_audio_prop) + property_socket write)
+# vendor_default_prop exists on every ROM; vendor_audio_prop may not — an unknown
+# type just makes magiskpolicy skip that single line, which is harmless.
+# ============================================================================
+allow hal_dms_default vendor_default_prop file { getattr open read map }
+allow hal_dms_default vendor_audio_prop file { getattr open read map }
 allow hal_dms_default property_socket sock_file write
-unix_socket_connect(hal_dms_default, property, init)
+allow hal_dms_default init unix_stream_socket connectto
 
-# hwservicemanager must be allowed to hand out the new hwservice label.
-allow hwservicemanager hal_dms_hwservice hwservice_manager_type
+# ============================================================================
+# Base domain hygiene the daemon needs to start (self ipc, devpts-free stdio,
+# reading its own libs from /vendor). Kept minimal.
+# ============================================================================
+allow hal_dms_default hal_dms_default process { fork sigchld getsched signal }
+allow hal_dms_default vendor_file file { read open getattr execute map }
+allow hal_dms_default vendor_file dir { search getattr open read }
+allow hal_dms_default self fd use
+
+# ----------------------------------------------------------------------------
+# DEBUG ONLY — if the daemon will not start and you need to collect the full
+# denial set, uncomment the next line, reboot, reproduce, run
+#   dmesg | grep 'avc: denied .* scontext=u:r:hal_dms_default'
+# then RE-COMMENT it and add the specific allows above. Never ship permissive.
+# ----------------------------------------------------------------------------
+# permissive hal_dms_default

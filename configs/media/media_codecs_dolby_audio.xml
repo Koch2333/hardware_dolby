@@ -52,5 +52,16 @@
             <Attribute name="software-codec" />
         </MediaCodec>
         <!-- DOLBY_UDC END -->
+        <!-- DOLBY_AC4 -->
+        <MediaCodec name="c2.dolby.ac4.decoder" >
+            <Type name="audio/ac4">
+                <Alias name="OMX.dolby.ac4.decoder" />
+                <Limit name="channel-count" max="8" />
+                <Limit name="sample-rate" ranges="44100,48000" />
+                <Limit name="bitrate" range="16000-1521000" />
+            </Type>
+            <Attribute name="software-codec" />
+        </MediaCodec>
+        <!-- DOLBY_AC4 END -->
     </Decoders>
 </Included>

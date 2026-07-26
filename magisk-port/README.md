@@ -53,8 +53,12 @@ definition** and its **hwservice_contexts label** are read *before* Magisk mount
 anything. Two consequences:
 
 - **`direct` mode (recommended):** the installer remounts `/vendor` read-write and
-  writes everything — including the `.rc` and the `hwservice_contexts` line —
-  straight into the partition. On next boot init launches the daemons normally and
+  writes everything — the `.rc`, the `hwservice_contexts` line, and the
+  `vendor_file_contexts` exec-label entries — straight into the partition. Those
+  exec-label entries matter: the SELinux policy (`sepolicy.rule`) is **strict, with
+  no `permissive` fallback**, so init's domain transition into `hal_dms_default`
+  only works if the daemon binary keeps its `hal_dms_default_exec` label across the
+  boot-time restorecon. On next boot init launches the daemons normally and
   hwservicemanager knows the `IDms` label. **Requires dm-verity / AVB disabled**
   (unlocked bootloader + patched `vbmeta`), otherwise the remount fails or the
   device won't boot.
@@ -103,23 +107,15 @@ Android version.
 # 3) Reboot.
 ```
 
-### Enabling AC4 (optional)
-`configs/media/media_codecs_dolby_audio.xml` declares only AC3/E-AC3/E-AC3-JOC.
-The `libcodec2_soft_ac4dec.so` blob provides `c2.dolby.ac4.decoder`, but it is not
-exposed until you add an AC4 `<MediaCodec>` block, e.g.:
+### AC4 (enabled by default)
+`configs/media/media_codecs_dolby_audio.xml` now declares **both**
+`c2.dolby.eac3.decoder` (AC3/E-AC3/E-AC3-JOC) **and** `c2.dolby.ac4.decoder`
+(`audio/ac4`), the latter backed by `libcodec2_soft_ac4dec.so`. The AC4 block is
+marked `<!-- DOLBY_AC4 -->`.
 
-```xml
-<MediaCodec name="c2.dolby.ac4.decoder">
-    <Type name="audio/ac4">
-        <Limit name="channel-count" max="24" />
-        <Limit name="sample-rate" ranges="44100,48000" />
-    </Type>
-    <Attribute name="software-codec" />
-</MediaCodec>
-```
-
-Add it inside `<Decoders>...</Decoders>` in `media_codecs_dolby_audio.xml`, then
-rebuild.
+To **disable** AC4, delete that block and rebuild. The declared AC4 limits
+(`channel-count max=8`, `sample-rate 44100,48000`, `bitrate 16000-1521000`) are
+conservative rendering-side values; adjust if your content needs more.
 
 ---
 
