@@ -1,0 +1,6 @@
+id=dolby_codec_port
+name=Dolby Codec Port (E-AC3/AC4 decode)
+version=v0.1.0
+versionCode=1
+author=koch2333
+description=Ports the Dolby Codec2 DECODERS (AC3 / E-AC3 / E-AC3-JOC and, if enabled, AC4) plus the DMS HAL they depend on, onto a stock AOSP-based Android 13 (API 33) arm64 vendor. No audio post-processing (DAP/DAX effects) is installed. Read README.md — this needs verity off and, for DMS registration, the direct install mode.

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.koch2333.dolbypassthrough">
+
+    <application
+        android:allowBackup="false"
+        android:label="Dolby Passthrough Unlocker"
+        android:supportsRtl="true">
+
+        <!-- Marks this APK as an Xposed/LSPosed module. -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Makes apps believe the device supports Dolby (E-AC3 / E-AC3-JOC / AC4) direct playback and surround output, so they request Dolby audio tracks. Pair with the Dolby Codec Magisk module — this only unlocks the request path, the Magisk module provides the actual decoders." />
+        <!-- Minimum LSPosed/Xposed API. 82 = modern LSPosed. -->
+        <meta-data
+            android:name="xposedminversion"
+            android:value="82" />
+        <!-- Recommended hook scope. Users still confirm scope in the LSPosed manager. -->
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
+    </application>
+</manifest>

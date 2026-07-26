@@ -1,0 +1,26 @@
+#!/sbin/sh
+#################
+# Standard Magisk module installer stub.
+# Loads Magisk's util_functions and hands control to install_module, which runs
+# customize.sh. Do not edit — logic lives in customize.sh.
+#################
+umask 022
+OUTFD=$2
+ZIPFILE=$3
+
+mount /data 2>/dev/null
+
+# find magisk util_functions
+for MAGISKBIN in /data/adb/magisk /data/adb/ksu /data/adb/ap; do
+  [ -f "$MAGISKBIN/util_functions.sh" ] && break
+done
+
+if [ ! -f "$MAGISKBIN/util_functions.sh" ]; then
+  echo "! Cannot find Magisk/KernelSU/APatch util_functions.sh"
+  echo "! Install via the Magisk/KernelSU app instead of recovery."
+  exit 1
+fi
+
+. "$MAGISKBIN/util_functions.sh"
+install_module
+exit 0

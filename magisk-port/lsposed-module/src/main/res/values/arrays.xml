@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Default recommended scope. These are examples of apps that gate Dolby audio
+      behind a device-capability check. Edit to match what you actually use, and
+      confirm the scope inside the LSPosed manager after install.
+      NOTE: hooking system_server / "android" is intentionally NOT included — the
+      capability lies live in each app's own process, so app scope is enough and
+      safer.
+    -->
+    <string-array name="xposed_scope">
+        <item>com.netflix.mediaclient</item>
+        <item>com.disney.disneyplus</item>
+        <item>com.google.android.youtube</item>
+        <item>com.google.android.apps.youtube.music</item>
+        <item>com.plexapp.android</item>
+        <item>org.videolan.vlc</item>
+        <item>com.mxtech.videoplayer.ad</item>
+        <item>com.mxtech.videoplayer.pro</item>
+    </string-array>
+</resources>

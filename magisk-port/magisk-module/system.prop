@@ -1,0 +1,8 @@
+# Dolby decoder-related vendor properties (applied via resetprop at post-fs-data).
+#
+# codec-only scope: the DAP/DAX post-processing props (spatializer, ds2, surround)
+# are intentionally NOT set here — they belong to the audio-effect path which this
+# module does not install.
+#
+# ro.vendor.dolby.dax.version is read by libdeccfg when building decoder config.
+ro.vendor.dolby.dax.version=DAX3_3.7.0.8_r1
