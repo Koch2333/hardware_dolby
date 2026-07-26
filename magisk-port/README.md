@@ -164,11 +164,16 @@ Directory: [`lsposed-module/`](lsposed-module/). Build it as a normal Android ap
 (`./gradlew assembleRelease`), install the APK, enable it in the LSPosed manager,
 and set its scope to the streaming/player apps you use.
 
-What it does: hooks `AudioTrack.isDirectPlaybackSupported(...)` and
-`AudioManager.getReportedSurroundFormats()/getSurroundFormats()` inside the target
-app so the app believes the device supports Dolby direct playback / surround
-output — pushing it to request an E-AC3-JOC/AC4 track instead of AAC. The
-Magisk-provided decoder then actually decodes it.
+What it does: hooks the platform audio-capability queries inside the target app so
+the app believes the device supports Dolby direct playback / surround output —
+pushing it to request an E-AC3-JOC/AC4 track instead of AAC. The Magisk-provided
+decoder then actually decodes it. Hooked queries:
+`AudioTrack.isDirectPlaybackSupported()` and `getDirectPlaybackSupport()`,
+`AudioManager.getReportedSurroundFormats()/getSurroundFormats()/isSurroundFormatEnabled()`,
+and — the one that matters for ExoPlayer/Media3-based apps on Android 13 —
+`AudioManager.getDirectProfilesForAttributes()`. See
+[`lsposed-module/README.md`](lsposed-module/README.md#what-it-hooks) for the full
+table.
 
 What it does **not** do: it does not create, register, or enable any codec. If the
 Magisk half isn't working, the app will request a Dolby track and playback will

@@ -41,8 +41,31 @@ The API is `compileOnly` on purpose — the LSPosed framework provides it at run
 4. Force-stop and reopen those apps.
 5. Watch `adb logcat | grep DolbyPassthrough` to confirm the hooks fire.
 
+## What it hooks
+
+`AudioCapabilityHook.kt` overrides every stock capability query an app can use to
+decide whether to request a Dolby track. Each hook is independent and degrades to a
+logged no-op on API levels where the method does not exist:
+
+| Method | API | Effect |
+|---|---|---|
+| `AudioTrack.isDirectPlaybackSupported(AudioFormat, AudioAttributes)` | 29+ | returns `true` for Dolby encodings |
+| `AudioTrack.getDirectPlaybackSupport(AudioFormat, AudioAttributes)` | 34+ | returns `DIRECT_PLAYBACK_BITSTREAM_SUPPORTED` for Dolby |
+| `AudioManager.getReportedSurroundFormats()` | hidden | adds the Dolby encodings to the list |
+| `AudioManager.getSurroundFormats()` | hidden | marks the Dolby encodings enabled |
+| `AudioManager.isSurroundFormatEnabled(int)` | 28+ | returns `true` for a Dolby encoding |
+| `AudioManager.getDirectProfilesForAttributes(AudioAttributes)` | 33+ | appends a synthesized `AudioProfile` per Dolby encoding |
+
+The last row is the important one on the target **Android 13**: modern
+**ExoPlayer / Media3** (the playback engine behind most streaming apps) reads
+`getDirectProfilesForAttributes` on API 33+ to choose passthrough encodings.
+Hooking only `isDirectPlaybackSupported` is *not* enough for those apps — that is
+why this row exists. The `AudioProfile` it constructs uses a hidden constructor
+reached by reflection; if that constructor is missing on some build, the hook
+disables itself and logs `AudioProfile ctor not found`.
+
 ## Tuning
 Different apps gate Dolby differently. If an app still won't request a Dolby track
-after this, it's using a private capability check — you'll need to identify and
-hook that app's specific method. `AudioCapabilityHook.kt` is structured to make
-adding another hook straightforward.
+after this, it is using a private, in-app capability check that bypasses the
+platform APIs above — you'll need to identify and hook that app's specific method.
+`AudioCapabilityHook.kt` is structured to make adding another hook straightforward.
